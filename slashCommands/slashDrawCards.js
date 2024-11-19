@@ -4,10 +4,21 @@ const e = ["<:anyapride:1043167915085672528>",
     "<:anyaGold:1043167887482945626>",
     "<:anya:967336847233679360>"];
 
-let totalDrawCount = 0;
-let totalPrideCount = 0;
 
-function performDraw(isCheat) {
+// 使用 Map 來追踪每個用戶的統計數據
+const userStats = new Map();
+
+function getUserStats(userId) {
+    if (!userStats.has(userId)) {
+        userStats.set(userId, {
+            totalDrawCount: 0,
+            totalPrideCount: 0
+        });
+    }
+    return userStats.get(userId);
+}
+
+function performDraw(userId,isCheat) {
     let result = {
         text: '',
         score: 0,
@@ -33,21 +44,23 @@ function performDraw(isCheat) {
         }
     }
 
-    totalDrawCount += 10;
-    totalPrideCount += result.prideCount;
+
+    const stats = getUserStats(userId);
+    stats.totalDrawCount += 10;
+    stats.totalPrideCount += result.prideCount;
 
     return result;
 };
 
-function createButtonRow() {
+function createButtonRow(userId) {
     return new ActionRowBuilder()
         .addComponents(
             new ButtonBuilder()
-                .setCustomId('continue_draw')
+                .setCustomId(`continue_draw:${userId}`)
                 .setLabel('連抽')
                 .setStyle(ButtonStyle.Primary),
             new ButtonBuilder()
-                .setCustomId('end_draw')
+                .setCustomId(`end_draw:${userId}`)
                 .setLabel('結束')
                 .setStyle(ButtonStyle.Secondary),
         );
@@ -67,7 +80,8 @@ export async function drawCards(interaction) {
     }
 
     const isCheat = textDrawCard.includes("作弊");
-    const result = performDraw(isCheat);
+    const userId = interaction.user.id;
+    const result = performDraw(userId,isCheat);
 
     let response = `${interaction.member.displayName} -> ${textDrawCard}\n${result.text}`;
 
@@ -81,7 +95,7 @@ export async function drawCards(interaction) {
     try {
         await interaction.reply({
             content: response,
-            components: [createButtonRow()]
+            components: [createButtonRow(userId)]
         });
     } catch (error) {
         console.error('回覆錯誤:', error);
@@ -90,8 +104,19 @@ export async function drawCards(interaction) {
 
 export async function handleDrawCardButtons(interaction) {
     try {
-        if (interaction.customId === 'continue_draw') {
-            const result = performDraw(false);
+        const [action, userId] = interaction.customId.split(':');
+        // 檢查是否為原始命令發起者
+        if (userId !== interaction.user.id) {
+            await interaction.reply({ 
+                content: '只有原始抽卡者可以使用這些按鈕！', 
+                ephemeral: true 
+            });
+            return;
+        }
+
+        if (action === 'continue_draw') {
+            const result = performDraw(userId, false);
+            const stats = getUserStats(userId);
 
             // 獲取原始訊息內容
             let originalContent = interaction.message.content;
@@ -108,18 +133,17 @@ export async function handleDrawCardButtons(interaction) {
 
             let updatedContent = userName + '\n' + lines.join('\n') + '\n' + result.text;
             if (result.score > 18) updatedContent += "(保底)";
-            updatedContent += `\n目前總共${totalDrawCount}抽，總計${totalPrideCount}張彩色`;
+            updatedContent += `\n目前總共${stats.totalDrawCount}抽，總計${stats.totalPrideCount}張彩色`;
 
             // 更新訊息
             await interaction.update({
                 content: updatedContent,
-                components: [createButtonRow()] // 保持按鈕
+                components: [createButtonRow(userId)] // 保持按鈕
             });
         }
 
-        if (interaction.customId === 'end_draw') {
-            totalDrawCount = 0;
-            totalPrideCount = 0;
+        if (action === 'end_draw') {
+            userStats.delete(userId); // 清除該用戶的統計數據
             // 移除按鈕
             await interaction.update({
                 content: interaction.message.content,
