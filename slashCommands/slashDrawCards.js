@@ -109,6 +109,8 @@ export async function handleDrawCardButtons(interaction) {
         }
 
         if (interaction.customId === 'end_draw') {
+            totalDrawCount = 0;
+            totalPrideCount = 0;
             // 移除按鈕
             await interaction.update({
                 content: interaction.message.content,
