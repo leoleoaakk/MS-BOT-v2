@@ -54,7 +54,7 @@ function createButtonRow() {
 }
 
 export async function drawCards(interaction) {
-    
+
     let textDrawCard = interaction.options.getString('敘述') || '';
     let choice = interaction.options.getString('選擇');
 
@@ -71,7 +71,7 @@ export async function drawCards(interaction) {
 
     let response = `${interaction.member.displayName} -> ${textDrawCard}\n${result.text}`;
 
-    if(isCheat){
+    if (isCheat) {
         response += "\n(保底十彩)";
         await interaction.reply(response);
     } else if (result.score > 18) {
@@ -97,7 +97,16 @@ export async function handleDrawCardButtons(interaction) {
             let originalContent = interaction.message.content;
             originalContent = originalContent.replace(/\n目前總共\d+抽，總計\d+張彩色$/, '');
 
-            let updatedContent = originalContent + '\n' + result.text;
+            // 限制只顯示最後5行抽卡結果
+            let lines = originalContent.split('\n');
+            const userName = lines[0];  // 保存用戶名那行
+            lines = lines.slice(1);     // 移除用戶名那行
+
+            if (lines.length > 5) {
+                lines = lines.slice(-5);  // 只保留最後5行
+            }
+
+            let updatedContent = userName + '\n' + lines.join('\n') + '\n' + result.text;
             if (result.score > 18) updatedContent += "(保底)";
             updatedContent += `\n目前總共${totalDrawCount}抽，總計${totalPrideCount}張彩色`;
 
