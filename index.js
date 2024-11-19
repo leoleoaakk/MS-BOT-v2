@@ -2,25 +2,21 @@
 import express from 'express';
 import { config } from 'dotenv';
 import { commands } from './commands.js';
-import { Client, GatewayIntentBits, REST, Routes, EmbedBuilder } from 'discord.js';
+import { Client, GatewayIntentBits, REST, Routes, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 //import { EmbedBuilder } from 'discord.js';
 //import {Discord} from 'discord.js';
 import configData from './config.json' assert { type: 'json' };
-import fetch from 'node-fetch';
 import cron from 'node-cron';
 import { create, all } from 'mathjs';
 
 const math = create(all);
 
-import { createSolErdaFragment } from './functions/CreateSolErdaFragmentEmbed.js';
-import { createAppleEmbed, createFashionBoxEmbed } from './functions/CreatePrizeEmbed.js';
-import { createBossDataEmbed, getDifficultyValue } from './functions/CreateBossDataEmbed.js';
-import { formatFashionBoxPrizeData, formatApplePrizeData, saveAppleJsonFile, saveFashionBoxJsonFile } from './functions/MSCrawler.js';
-import { addDebt, repayDebt, queryDebt, queryDebtByCreditor} from './functions/debtsNote.js';
-import { unionAttackDamage, levelFinalDamage, levelExpModifier} from './functions/Formulas.js';
+
+import { saveAppleJsonFile, saveFashionBoxJsonFile } from './functions/MSCrawler.js';
 
 import { unionCommand, solerdaCommand, bossCommand, eventCommand, chanceCommand, formulasCommand } from './slashCommands/slashMSCommand.js';
 import { addDebtCommand, repayDebtCommand, queryDebtCommand } from './slashCommands/slashDebtsNoteCommand.js';
+import { drawCards, handleDrawCardButtons } from './slashCommands/slashDrawCards.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -106,6 +102,14 @@ app.listen(PORT, () => {
 });
 
 client.on('interactionCreate', async interaction => {
+    const q = [3, 20, 100];
+    const e = ["<:anyapride:1043167915085672528>",
+        "<:anyaGold:1043167887482945626>",
+        "<:anya:967336847233679360>"];
+    // 添加按鈕處理器
+    if (interaction.isButton()) {
+        await handleDrawCardButtons(interaction);
+    }
     if (!interaction.isChatInputCommand()) return;
     try {
         if (interaction.commandName === 'ping') {
@@ -153,52 +157,11 @@ client.on('interactionCreate', async interaction => {
 
             if (interaction.options.getSubcommand() === "查詢") {
                 await queryDebtCommand(interaction);
-            } 
+            }
         }
 
         if (interaction.commandName === "曬卡") {
-            const q = [3, 20, 100];
-            let e = ["<:anyapride:1043167915085672528>",
-                "<:anyaGold:1043167887482945626>",
-                "<:anya:967336847233679360>"];
-            let t = "";
-            let s = 0;
-
-            let textDrawCard = interaction.options.getString('敘述') || '';
-            let choice = interaction.options.getString('選擇');
-
-            if (choice === 'probability') {
-                let pride = q[0];
-                let gold = q[1] - q[0];
-                let normal = q[2] - q[1];
-                await interaction.reply(`彩色 ${pride}% 金色 ${gold}% 普通 ${normal}%`);
-                return;
-            }
-
-            if (textDrawCard.includes("作弊")) {
-                for (let i = 0; i < 10; i++) {
-                    t += e[0];
-                }
-                let response = `${interaction.member.displayName} -> 作弊\n${t}\n(保底十彩)`;
-                await interaction.reply(response);
-            } else {
-                for (let i = 0; i < 10; i++) {
-                    for (let j = 0; j < 3; j++) {
-                        if (Math.random() * 100 < q[j]) {
-                            s += j;
-                            if (s == 20)
-                                t += e[1];
-                            else
-                                t += e[j];
-                            break;
-                        }
-                    }
-                }
-                let response = (`${interaction.member.displayName} -> ${textDrawCard}\n${t}`);
-                if (s > 18)
-                    response += "(保底)";
-                await interaction.reply(response);
-            }
+            await drawCards(interaction);
         }
 
         if (interaction.commandName === "aris") {
@@ -252,25 +215,6 @@ client.on('interactionCreate', async interaction => {
         await interaction.reply("發生錯誤，請稍後再試。");
     }
 });
-
-// 創建活動嵌入的函數
-function CreateMapleEventsEmbeds(listData) {
-    const embeds = [];
-    listData.forEach(data => {
-        const embed = new EmbedBuilder()
-            .setTitle(data.adName)
-            .setURL(data.adUrl)
-            .setImage(data.adImage);
-
-        const startDt = new Date(data.adsTime);
-        const endDt = new Date(data.adeTime);
-        const dateText = `${startDt.toLocaleString('zh-TW')} ~ ${endDt.toLocaleString('zh-TW')}`;
-        embed.addFields({ name: "活動期限:", value: dateText });
-
-        embeds.push(embed);
-    });
-    return embeds;
-}
 
 client.login(token);
 
