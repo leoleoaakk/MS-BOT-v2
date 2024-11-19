@@ -5,7 +5,7 @@ import { commands } from './commands.js';
 import { Client, GatewayIntentBits, REST, Routes, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 //import { EmbedBuilder } from 'discord.js';
 //import {Discord} from 'discord.js';
-import configData from './config.json' assert { type: 'json' };
+//import configData from './config.json' assert { type: 'json' };
 import cron from 'node-cron';
 import { create, all } from 'mathjs';
 
@@ -23,7 +23,7 @@ const PORT = process.env.PORT || 3000;
 
 config();
 const token = process.env.DISCORD_TOKEN;
-const { prefix } = configData;
+//const { prefix } = configData;
 //const { Discord } = require("discord.js");
 //const { prefix } = require('./config.json');
 
