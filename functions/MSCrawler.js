@@ -7,20 +7,46 @@ const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
 
 async function getWebsiteData(page) {
-    const browser = await puppeteer.launch({ headless: true });
+    const browser = await puppeteer.launch({ 
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+    });
     const pageInstance = await browser.newPage();
+    
     try {
+        // 設置較長的超時時間
+        await pageInstance.setDefaultNavigationTimeout(60000); // 60 秒
+        
+        await pageInstance.setViewport({ width: 1366, height: 768 });
+        
+        console.log('開始加載頁面...');
         await pageInstance.goto(`https://tw-event.beanfun.com/MapleStory/eventad/EventAD.aspx?EventADID=${page}`);
-        //await pageInstance.waitForTimeout(10000); // 等待網頁加載完成
-        await setTimeout(10000);
+        console.log('頁面加載完成');
 
-        //const pageContent = await pageInstance.content();
-        //const eventTimeText = pageContent;
-        const eventTimeText = await pageInstance.evaluate(() => document.body.innerText);
+        console.log('等待表格元素...');
+        await pageInstance.waitForSelector('table');
+        console.log('表格元素已找到');
+
+        await pageInstance.waitForFunction(() => document.readyState === 'complete');
+        
+        await setTimeout(5000);
+
+        const pageContent = await pageInstance.content();
+        if (pageContent.includes('抱歉') || pageContent.includes('Error')) {
+            throw new Error('Page not found or error occurred.');
+        }
+
+        const eventTimeText = await pageInstance.evaluate(() => {
+            const allText = document.body.innerText;
+            const datePattern = /\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}/g;
+            const dates = allText.match(datePattern);
+            return dates ? dates.join(' ~ ') : '';
+        });
+
+        console.log('提取到的日期文本:', eventTimeText);
 
         const regex = /(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2})\s*~\s*(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2})/;
         const match = eventTimeText.match(regex);
-        //console.log(match);
 
         let eventStartTime = '2000/01/01 00:00';
         let eventEndTime = '2999/12/31 23:59';
@@ -28,31 +54,39 @@ async function getWebsiteData(page) {
             [eventStartTime, eventEndTime] = match.slice(1);
         }
 
-        // 檢查是否包含錯誤消息
-        if (eventTimeText.includes('抱歉') || eventTimeText.includes('Error')) {
-            throw new Error('Page not found or error occurred.');
-        }
+        await pageInstance.waitForSelector('table', { timeout: 20000 });
+        
+        await pageInstance.waitForSelector('table tr', { timeout: 20000 });
+        
+        await setTimeout(2000);
 
         const tableData = await pageInstance.evaluate(() => {
             const rows = Array.from(document.querySelectorAll('table tr'));
+            if (rows.length === 0) {
+                return null; // 如果沒有找到表格行，返回 null
+            }
             return rows.map(row => {
                 const cells = Array.from(row.querySelectorAll('td'));
                 return cells.map(cell => cell.innerText.trim());
-            });
+            }).filter(row => row.length > 0); // 過濾掉空行
         });
 
-        // 檢查 tableData 是否有效
-        if (tableData.length === 0 || !tableData[0] || tableData[0][0] !== '道具名稱') {
-            throw new Error('Invalid table data.');
+        // 驗證數據
+        if (!tableData || tableData.length === 0) {
+            throw new Error('No table data found');
         }
 
-        //console.log(tableData);
-
-        await browser.close();
+        console.log(`成功抓取頁面 ${page} 的數據，共 ${tableData.length} 行`);
         return { eventStartTime, eventEndTime, tableData };
+
     } catch (error) {
-        console.error(`Error while fetching data for page ${page}:`, error);
-        return { eventStartTime:'2000/01/01 00:00' , eventEndTime:'2999/12/31 23:59', tableData: [] }; // 返回空數據
+        console.error(`抓取頁面 ${page} 時發生錯誤:`, error.message);
+        console.error('完整錯誤:', error);
+        return { 
+            eventStartTime: '2000/01/01 00:00', 
+            eventEndTime: '2999/12/31 23:59', 
+            tableData: [] 
+        };
     } finally {
         await browser.close();
     }
@@ -62,7 +96,6 @@ async function getGoldAppleData() {
     const page = 8369;
     const { eventStartTime, eventEndTime, tableData } = await getWebsiteData(page);
 
-    //console.log(tableData);
     const appleDataJson = {};
     const boxDataJson = {};
     let isAppleTable = true;
@@ -95,8 +128,6 @@ async function getGoldAppleData() {
             }
         }
     }
-    //console.log(appleDataJson);
-    //console.log(boxDataJson);
     return { eventStartTime, eventEndTime, appleDataJson, boxDataJson };
 }
 
@@ -110,7 +141,6 @@ async function getFashionBoxData() {
         return { eventStartTime, eventEndTime, dataDict };
     }
     let lastChance = null;
-    //console.log(tableData);
     for (const table of tableData) {
         const prize = table[0].trim();
         const chanceStr = table[1] !== undefined ? table[1].trim() : undefined; // 確保機率存在

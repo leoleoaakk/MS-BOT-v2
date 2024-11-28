@@ -60,7 +60,7 @@ client.once('ready', () => {
     client.user.setActivity(`輸入/ 查詢&使用各種指令`);
 
     // 每週三下午執行爬蟲
-    cron.schedule('0,15,30 5,6,7,8,9,10 * * 3', async () => {
+    cron.schedule('*/5 4-10 * * 3', async () => {
         console.log('執行爬蟲任務...');
 
         //let hasUpdates = false;
